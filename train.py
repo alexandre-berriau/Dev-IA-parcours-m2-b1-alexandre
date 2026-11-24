@@ -2,7 +2,7 @@
 
 Démarche (cf. RESULTATS.md) :
   1. lecture SQL de l'historique, avec la jointure sur `hotels` ;
-  2. nettoyage des anomalies décidées en tâche 3 (nettoyage.nettoyer()) ;
+  2. nettoyage des anomalies décidées en tâche 3, et rapport de qualité écrit à côté du modèle ;
   3. découpage temporel : les TEST_MONTHS derniers mois d'arrivée forment le jeu de test ;
   4. pipeline : variables calculées → préparation → régression logistique ;
   5. réglage de C par validation croisée temporelle (TimeSeriesSplit) ;
@@ -49,6 +49,7 @@ from features import (
 )
 from model.train_baseline import build_pipeline as build_v1
 from nettoyage import nettoyer
+from qualite import ecrire_rapport
 
 ROOT = Path(__file__).resolve().parent
 MODEL_DIR = ROOT / "model"
@@ -175,12 +176,16 @@ def evaluate(model, X: pd.DataFrame, y: pd.Series) -> dict:
 
 def main() -> None:
     engine = create_engine(os.environ["DATABASE_URL"])
-    df = load_data(engine)
-    lignes_brutes = len(df)
-    df, compte_rendu = nettoyer(df)
+    brut = load_data(engine)
+    df, compte_rendu = nettoyer(brut)
     print("Nettoyage :")
     print(compte_rendu.to_string(index=False))
-    print(f"{lignes_brutes} réservations lues, {lignes_brutes - len(df)} retirées, {len(df)} conservées")
+    print(f"{len(brut)} réservations lues, {len(brut) - len(df)} retirées, {len(df)} conservées")
+
+    rapport_path = MODEL_DIR / f"rapport_qualite_v{VERSION}.md"
+    ecrire_rapport(brut, compte_rendu, df, rapport_path, VERSION)
+    print("Rapport de qualité écrit dans", rapport_path)
+
     train, test = split_train_test(df)
     print(f"Entraînement : {len(train)} réservations | test : {len(test)} réservations")
 
@@ -220,7 +225,7 @@ def main() -> None:
         "target": TARGET,
         # Trace du nettoyage : la fiche répond à "sur quelles données le modèle a-t-il appris ?"
         "cleaning": {
-            "rows_before": lignes_brutes,
+            "rows_before": len(brut),
             "rows_after": len(df),
             "rules": compte_rendu.to_dict(orient="records"),
         },
