@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     env_file: .env
     ports:
-      - "5433:5432"   # 5433 sur le poste : évite le conflit avec un PostgreSQL local
+      - "5434:5432"   # 5434 sur le poste : 5432 et 5433 sont déjà pris par d'autres conteneurs
     volumes:
       # Scripts exécutés automatiquement au PREMIER démarrage (base vide) : schéma puis chargement
       - ./db/init:/docker-entrypoint-initdb.d:ro
