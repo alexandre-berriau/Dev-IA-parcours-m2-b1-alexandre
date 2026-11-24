@@ -9,6 +9,10 @@ d'une autre colonne impose de l'ajouter à la requête.
 
 import pandas as pd
 
+# Plafonds retenus en tâche 3, au-delà desquels la ligne n'est plus une réservation de chambre
+PLAFOND_ADULTES = 10
+PLAFOND_ADR = 1000
+
 
 # --- Exemple fourni : une règle, sa justification, son test (tests/test_nettoyage.py) -------------------
 
@@ -25,12 +29,46 @@ def imputer_enfants_manquants(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     return out, int(manquants.sum())
 
 
-# --- TODO (tâche 4) : tes règles, une fonction chacune, sur le même modèle -------------------------------
+# --- Les règles décidées en tâche 3 ---------------------------------------------------------------------
+
+def supprimer_sans_adulte(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """`adults` à 0 → ligne supprimée.
+
+    Justification : 273 lignes, dont 113 sans aucun occupant. Un hôtel ne loue pas de chambre
+    sans adulte, et le pipeline calcule `guests` et `adr_per_guest` à partir de cette colonne.
+    Posée au client en question 5 : s'il reconnaît ce type de ligne, la règle saute.
+    """
+    a_garder = df["adults"] > 0
+    return df[a_garder].copy(), int((~a_garder).sum())
 
 
-# Ordre d'application. Ajoute tes règles ici.
+def supprimer_groupes_improbables(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """Plus de PLAFOND_ADULTES adultes sur une ligne → ligne supprimée.
+
+    Justification : 12 lignes de 20 à 55 adultes, annulées à 93 % et presque toutes à 0 €.
+    Des pré-réservations de groupe, pas des chambres. Le `StandardScaler` du pipeline cale
+    son échelle sur ces extrêmes.
+    """
+    a_garder = df["adults"] <= PLAFOND_ADULTES
+    return df[a_garder].copy(), int((~a_garder).sum())
+
+
+def supprimer_prix_aberrant(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """`adr` au-delà de PLAFOND_ADR euros → ligne supprimée.
+
+    Justification : une seule ligne à 5 400 € la nuit, quand le deuxième prix le plus haut
+    de la base est 508 €. Les prix nuls ne sont pas touchés, 479 sont des gratuités assumées.
+    """
+    a_garder = df["adr"] <= PLAFOND_ADR
+    return df[a_garder].copy(), int((~a_garder).sum())
+
+
+# Ordre d'application : l'imputation d'abord, puis les suppressions du plus gros volume au plus petit
 REGLES = [
     imputer_enfants_manquants,
+    supprimer_sans_adulte,
+    supprimer_groupes_improbables,
+    supprimer_prix_aberrant,
 ]
 
 
